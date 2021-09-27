@@ -18,7 +18,7 @@ import (
 func main() {
 	ctx := context.Background()
 
-	client, err := firestore.NewClient(ctx, "dlmbltlg", option.WithCredentialsFile("dlmbltlg-fd1662fc1892.json"))
+	client, err := firestore.NewClient(ctx, "dlmbltlg", option.WithCredentialsFile("secrets/firestore.json"))
 	if err != nil {
 		log.Fatal(err)
 		return
