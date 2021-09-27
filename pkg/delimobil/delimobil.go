@@ -73,13 +73,7 @@ type File struct {
 }
 
 func (user *User) IsValid() bool {
-	valid := (user.JWT.StandardClaims.Valid() == nil) && user.JWT.ExpiresAt != 0
-	if valid {
-		log.Print("Token is valid")
-	} else {
-		log.Print("Token is not valid")
-	}
-	return valid
+	return (user.JWT.StandardClaims.Valid() == nil) && user.JWT.ExpiresAt != 0
 }
 
 func (user *User) Auth(login, password string) error {

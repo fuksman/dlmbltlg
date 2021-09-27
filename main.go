@@ -2,18 +2,21 @@ package main
 
 import (
 	"bytes"
-	"cloud.google.com/go/firestore"
 	"context"
 	"dlmbltlg/pkg/delimobil"
 	"encoding/base64"
 	"encoding/gob"
 	"errors"
-	"google.golang.org/api/option"
-	tb "gopkg.in/tucnak/telebot.v2"
 	"log"
 	"strconv"
 	"strings"
+
+	"cloud.google.com/go/firestore"
+	"google.golang.org/api/option"
+	tb "gopkg.in/tucnak/telebot.v2"
 )
+
+type ctxKey string
 
 func main() {
 	ctx := context.Background()
@@ -55,6 +58,10 @@ func main() {
 		selector.Row(btnNewInvoice30000, btnLastInvoice),
 	)
 
+	ctx = context.WithValue(ctx, ctxKey("firestore"), client)
+	ctx = context.WithValue(ctx, ctxKey("bot"), b)
+	ctx = context.WithValue(ctx, ctxKey("invoiceMenu"), selector)
+
 	b.Handle("/start", func(m *tb.Message) {
 		mes := "Привет! Вот мой список команд:\n/auth — Авторизоваться\n/balance — Показать текущий баланс\n/rides — Показать последние поездки\n/newinvoice — Создать новый счёт\n/lastinvoice — Получить последний счёт"
 		b.Send(m.Sender, mes)
@@ -68,19 +75,22 @@ func main() {
 			b.Send(m.Sender, "Что-то не так.\nПравильное использование:\n /auth login password"+removed)
 			return
 		}
-		user, err := SetUserCredentials(client, &ctx, m.Sender.ID, creds[0], creds[1])
-		if err != nil {
+
+		user := new(delimobil.User)
+		if err := user.Auth(creds[0], creds[1]); err != nil {
 			log.Print(err)
 			b.Delete(m)
 			b.Send(m.Sender, err.Error()+removed)
 			return
 		}
+		go SaveUser(&ctx, user, m.Sender.ID)
+
 		b.Delete(m)
 		b.Send(m.Sender, "Привет, "+user.Name()+"!\nВсё настроено, можем работать."+removed)
 	})
 
 	b.Handle("/balance", func(m *tb.Message) {
-		user, err := UserCredentials(client, &ctx, m.Sender.ID)
+		user, err := UserCredentials(&ctx, m.Sender.ID)
 		if err != nil {
 			log.Print(err)
 			b.Send(m.Sender, err.Error())
@@ -94,11 +104,11 @@ func main() {
 		mes := user.Name() + " (" + user.Org.Name + ")\n" +
 			"Текущий баланс: " + strconv.FormatFloat(user.Org.Balance, 'f', 2, 64) + " ₽"
 		b.Send(m.Sender, mes)
-		NotifyAboutBalance(user, b, m.Sender, selector)
+		NotifyAboutBalance(&ctx, user, m.Sender)
 	})
 
 	b.Handle("/rides", func(m *tb.Message) {
-		user, err := UserCredentials(client, &ctx, m.Sender.ID)
+		user, err := UserCredentials(&ctx, m.Sender.ID)
 		if err != nil {
 			log.Print(err)
 			b.Send(m.Sender, err.Error())
@@ -116,95 +126,67 @@ func main() {
 		}
 		mes := "Последние поездки:\n" + user.Org.Rides.String()
 		b.Send(m.Sender, mes)
-		NotifyAboutBalance(user, b, m.Sender, selector)
+		NotifyAboutBalance(&ctx, user, m.Sender)
 	})
 
 	b.Handle("/lastinvoice", func(m *tb.Message) {
-		user, err := UserCredentials(client, &ctx, m.Sender.ID)
-		if err != nil {
-			log.Print(err)
-			b.Send(m.Sender, err.Error())
-			return
-		}
-		Invoice(user, b, m.Sender)
+		Invoice(&ctx, m.Sender)
 	})
 
 	b.Handle("/newinvoice", func(m *tb.Message) {
-		SendInvoiceMenu(b, m.Sender, selector)
+		SendInvoiceMenu(&ctx, m.Sender)
 	})
 
 	b.Handle(&btnNewInvoice3000, func(c *tb.Callback) {
-		user, err := UserCredentials(client, &ctx, c.Sender.ID)
-		if err != nil {
-			log.Print(err)
-			b.Send(c.Sender, err.Error())
-			return
-		}
-		Invoice(user, b, c.Sender, 3000)
+		Invoice(&ctx, c.Sender, 3000)
 		b.Respond(c)
 	})
 
 	b.Handle(&btnNewInvoice10000, func(c *tb.Callback) {
-		user, err := UserCredentials(client, &ctx, c.Sender.ID)
-		if err != nil {
-			log.Print(err)
-			b.Send(c.Sender, err.Error())
-			return
-		}
-		Invoice(user, b, c.Sender, 10000)
+		Invoice(&ctx, c.Sender, 10000)
 		b.Respond(c)
 	})
 
 	b.Handle(&btnNewInvoice30000, func(c *tb.Callback) {
-		user, err := UserCredentials(client, &ctx, c.Sender.ID)
-		if err != nil {
-			log.Print(err)
-			b.Send(c.Sender, err.Error())
-			return
-		}
-		Invoice(user, b, c.Sender, 30000)
+		Invoice(&ctx, c.Sender, 30000)
 		b.Respond(c)
 	})
 
 	b.Handle(&btnLastInvoice, func(c *tb.Callback) {
-		user, err := UserCredentials(client, &ctx, c.Sender.ID)
-		if err != nil {
-			log.Print(err)
-			b.Send(c.Sender, err.Error())
-			return
-		}
-		Invoice(user, b, c.Sender)
+		Invoice(&ctx, c.Sender)
 		b.Respond(c)
 	})
 
 	b.Start()
 }
 
-func NotifyAboutBalance(user *delimobil.User, b *tb.Bot, sender *tb.User, menu *tb.ReplyMarkup) {
+func NotifyAboutBalance(ctx *context.Context, user *delimobil.User, sender *tb.User) {
+	bot := (*ctx).Value(ctxKey("bot")).(*tb.Bot)
 	balanceLimit := float64(1000)
+
 	if user.IsBalanceOK(balanceLimit) {
 		return
 	}
-
 	mes := "🚨 Баланс меньше " + strconv.FormatFloat(balanceLimit, 'f', 2, 64) + " ₽!\nНадо пополнять."
-	b.Send(sender, mes)
-	SendInvoiceMenu(b, sender, menu)
+	bot.Send(sender, mes)
+	SendInvoiceMenu(ctx, sender)
 }
 
-func SendInvoiceMenu(b *tb.Bot, sender *tb.User, menu *tb.ReplyMarkup) {
-	b.Send(sender, "Какой нужен счёт?", menu)
+func SendInvoiceMenu(ctx *context.Context, sender *tb.User) {
+	bot := (*ctx).Value(ctxKey("bot")).(*tb.Bot)
+	menu := (*ctx).Value(ctxKey("invoiceMenu")).(*tb.ReplyMarkup)
+	bot.Send(sender, "Какой нужен счёт?", menu)
 }
 
-func Invoice(user *delimobil.User, b *tb.Bot, sender *tb.User, amount ...float64) {
-	if err := user.Auth(user.Login, user.Password); err != nil {
+func Invoice(ctx *context.Context, sender *tb.User, amount ...float64) {
+	bot := (*ctx).Value(ctxKey("bot")).(*tb.Bot)
+	user, err := UserCredentials(ctx, sender.ID)
+	if err != nil {
 		log.Print(err)
-		b.Send(sender, err.Error())
+		bot.Send(sender, err.Error())
 		return
 	}
-	var (
-		invoice *delimobil.File
-		err     error
-	)
+	var invoice *delimobil.File
 	if amount != nil {
 		invoice, err = user.CreateInvoice(amount[0])
 	} else {
@@ -212,22 +194,40 @@ func Invoice(user *delimobil.User, b *tb.Bot, sender *tb.User, amount ...float64
 	}
 	if err != nil {
 		log.Print(err)
-		b.Send(sender, err.Error())
+		bot.Send(sender, err.Error())
 		return
 	}
 	doc := &tb.Document{File: tb.FromReader(invoice.Data)}
 	doc.FileName = invoice.FileName
 	doc.MIME = invoice.MIME
-	b.Send(sender, doc)
+	bot.Send(sender, doc)
 }
 
-func UserCredentials(client *firestore.Client, ctx *context.Context, ID int) (user *delimobil.User, err error) {
+func UserCredentials(ctx *context.Context, ID int) (user *delimobil.User, err error) {
+	user, err = LoadUser(ctx, ID)
+	if err != nil {
+		return nil, err
+	}
+
+	if user.IsValid() {
+		return user, nil
+	}
+
+	if err := user.Auth(user.Login, user.Password); err != nil {
+		return nil, err
+	}
+	go SaveUser(ctx, user, ID)
+
+	return user, nil
+}
+
+func LoadUser(ctx *context.Context, ID int) (user *delimobil.User, err error) {
+	client := (*ctx).Value(ctxKey("firestore")).(*firestore.Client)
 	userDocRef := client.Collection("Users").Doc(strconv.Itoa(ID))
 	authError := errors.New("🤔 Кажется, мы ещё не знакомы. Отправь команду\n/auth login password")
 
 	userDoc, err := userDocRef.Get(*ctx)
 	if err != nil {
-		log.Print("can't get anything from firestore", err)
 		return nil, authError
 	}
 
@@ -236,7 +236,6 @@ func UserCredentials(client *firestore.Client, ctx *context.Context, ID int) (us
 		return nil, authError
 	}
 
-	user = new(delimobil.User)
 	by, err := base64.StdEncoding.DecodeString(userGob.(string))
 	if err != nil {
 		return nil, err
@@ -249,29 +248,24 @@ func UserCredentials(client *firestore.Client, ctx *context.Context, ID int) (us
 		return nil, err
 	}
 
-	if user.IsValid() {
-		return user, nil
-	}
-
-	return SetUserCredentials(client, ctx, ID, user.Login, user.Password)
+	return user, nil
 }
 
-func SetUserCredentials(client *firestore.Client, ctx *context.Context, ID int, login, password string) (user *delimobil.User, err error) {
-	user = new(delimobil.User)
+func SaveUser(ctx *context.Context, user *delimobil.User, ID int) error {
+	client := (*ctx).Value(ctxKey("firestore")).(*firestore.Client)
 	userDocRef := client.Collection("Users").Doc(strconv.Itoa(ID))
 
-	if err := user.Auth(login, password); err != nil {
-		return nil, err
-	}
 	buf := bytes.Buffer{}
 	enc := gob.NewEncoder(&buf)
 	if err := enc.Encode(user); err != nil {
-		return nil, err
+		log.Print(err)
+		return err
 	}
 
 	if _, err := userDocRef.Set(*ctx, map[string]interface{}{"gob": base64.StdEncoding.EncodeToString(buf.Bytes())}); err != nil {
-		return nil, err
+		log.Print(err)
+		return err
 	}
 
-	return user, nil
+	return nil
 }
