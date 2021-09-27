@@ -29,8 +29,14 @@ jobs:
     - name: Build dlmbltlg for linux/386
       run: env GOOS=linux GOARCH=386 go build -o ./dlmbltlg -v
     
-    - name: Compress executable
+    - name: Compress executable for linux/386
       run: tar cvfz ./dlmbltlg_linux_386.tar.gz ./dlmbltlg
+    
+    - name: Build dlmbltlg for darwin/amd64
+      run: env GOOS=darwin GOARCH=amd64 go build -o ./dlmbltlg -v
+    
+    - name: Compress executable for darwin/amd64
+      run: tar cvfz ./dlmbltlg_darwin_amd64.tar.gz ./dlmbltlg
     
     - name: Create Release
       id: create_release
@@ -49,4 +55,13 @@ jobs:
         upload_url: ${{ steps.create_release.outputs.upload_url }}
         asset_path: ./dlmbltlg_linux_386.tar.gz
         asset_name: dlmbltlg_linux_386.tar.gz
+        asset_content_type: application/gzip
+      
+    - name: Upload dlmbltlg for darwin/amd64
+      id: upload_dlmbltlg_darwin_amd64
+      uses: actions/upload-release-asset@v1
+      with:
+        upload_url: ${{ steps.create_release.outputs.upload_url }}
+        asset_path: ./dlmbltlg_darwin_amd64.tar.gz
+        asset_name: dlmbltlg_darwin_amd64.tar.gz
         asset_content_type: application/gzip
