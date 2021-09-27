@@ -1,0 +1,52 @@
+name: Upload Release Asset
+
+on:
+  push:
+    tags: [ 'v*' ] # Push events to matching v*, i.e. v1.0, v20.15.10
+
+jobs:
+
+  build: 
+    name: Upload Release Asset
+    runs-on: ubuntu-latest
+    env:
+      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }} # This token is provided by Actions
+      COMPRESS_FILES: true
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v2
+
+    - name: Set up Go
+      uses: actions/setup-go@v2
+      with:
+        go-version: 1.17
+    
+    - name: Get dependencies
+      run: |
+        go get -v -t -d ./...
+
+    - name: Build dlmbltlg for linux/386
+      run: env GOOS=linux GOARCH=386 go build -o ./dlmbltlg -v
+    
+    - name: Compress executable
+      run: tar cvfz ./dlmbltlg_linux_386.tar.gz ./dlmbltlg
+    
+    - name: Create Release
+      id: create_release
+      uses: actions/create-release@v1
+      with:
+        tag_name: ${{ github.ref }}
+        release_name: Release ${{ github.ref }}
+        body: ${{ github.event.head_commit.message }}
+        draft: false
+        prerelease: false
+      
+    - name: Upload dlmbltlg for linux/386
+      id: upload_dlmbltlg_linux_386
+      uses: actions/upload-release-asset@v1
+      with:
+        upload_url: ${{ steps.create_release.outputs.upload_url }}
+        asset_path: ./dlmbltlg_linux_386.tar.gz
+        asset_name: dlmbltlg_linux_386.tar.gz
+        asset_content_type: application/gzip
