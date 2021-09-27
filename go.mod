@@ -1,4 +1,4 @@
-module delimobil
+module dlmbltlg
 
 go 1.17
 

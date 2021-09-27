@@ -4,7 +4,7 @@ import (
 	"bytes"
 	"cloud.google.com/go/firestore"
 	"context"
-	deli "delimobil/pkg/delimobilapi"
+	"dlmbltlg/pkg/delimobil"
 	"encoding/base64"
 	"encoding/gob"
 	"errors"
@@ -180,7 +180,7 @@ func main() {
 	b.Start()
 }
 
-func NotifyAboutBalance(user *deli.User, b *tb.Bot, sender *tb.User, menu *tb.ReplyMarkup) {
+func NotifyAboutBalance(user *delimobil.User, b *tb.Bot, sender *tb.User, menu *tb.ReplyMarkup) {
 	balanceLimit := float64(1000)
 	if user.IsBalanceOK(balanceLimit) {
 		return
@@ -195,14 +195,14 @@ func SendInvoiceMenu(b *tb.Bot, sender *tb.User, menu *tb.ReplyMarkup) {
 	b.Send(sender, "Какой нужен счёт?", menu)
 }
 
-func Invoice(user *deli.User, b *tb.Bot, sender *tb.User, amount ...float64) {
+func Invoice(user *delimobil.User, b *tb.Bot, sender *tb.User, amount ...float64) {
 	if err := user.Auth(user.Login, user.Password); err != nil {
 		log.Print(err)
 		b.Send(sender, err.Error())
 		return
 	}
 	var (
-		invoice *deli.File
+		invoice *delimobil.File
 		err     error
 	)
 	if amount != nil {
@@ -221,7 +221,7 @@ func Invoice(user *deli.User, b *tb.Bot, sender *tb.User, amount ...float64) {
 	b.Send(sender, doc)
 }
 
-func UserCredentials(client *firestore.Client, ctx *context.Context, ID int) (user *deli.User, err error) {
+func UserCredentials(client *firestore.Client, ctx *context.Context, ID int) (user *delimobil.User, err error) {
 	userDocRef := client.Collection("Users").Doc(strconv.Itoa(ID))
 	authError := errors.New("🤔 Кажется, мы ещё не знакомы. Отправь команду\n/auth login password")
 
@@ -236,7 +236,7 @@ func UserCredentials(client *firestore.Client, ctx *context.Context, ID int) (us
 		return nil, authError
 	}
 
-	user = new(deli.User)
+	user = new(delimobil.User)
 	by, err := base64.StdEncoding.DecodeString(userGob.(string))
 	if err != nil {
 		return nil, err
@@ -256,8 +256,8 @@ func UserCredentials(client *firestore.Client, ctx *context.Context, ID int) (us
 	return SetUserCredentials(client, ctx, ID, user.Login, user.Password)
 }
 
-func SetUserCredentials(client *firestore.Client, ctx *context.Context, ID int, login, password string) (user *deli.User, err error) {
-	user = new(deli.User)
+func SetUserCredentials(client *firestore.Client, ctx *context.Context, ID int, login, password string) (user *delimobil.User, err error) {
+	user = new(delimobil.User)
 	userDocRef := client.Collection("Users").Doc(strconv.Itoa(ID))
 
 	if err := user.Auth(login, password); err != nil {

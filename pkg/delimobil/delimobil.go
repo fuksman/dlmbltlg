@@ -1,4 +1,4 @@
-package delimobilapi
+package delimobil
 
 import (
 	"bytes"
