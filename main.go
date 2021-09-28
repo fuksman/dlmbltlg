@@ -3,7 +3,6 @@ package main
 import (
 	"bytes"
 	"context"
-	"dlmbltlg/pkg/delimobil"
 	"encoding/base64"
 	"encoding/gob"
 	"errors"
@@ -12,6 +11,7 @@ import (
 	"strings"
 
 	"cloud.google.com/go/firestore"
+	"github.com/fuksman/delimobil"
 	"google.golang.org/api/option"
 	tb "gopkg.in/tucnak/telebot.v2"
 )

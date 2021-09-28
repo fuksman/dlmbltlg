@@ -2,7 +2,7 @@ name: Upload Release Asset
 
 on:
   push:
-    tags: [ 'v*' ] # Push events to matching v*, i.e. v1.0, v20.15.10
+    tags: [ 'v*' ]
 
 jobs:
 
@@ -10,7 +10,8 @@ jobs:
     name: Upload Release Asset
     runs-on: ubuntu-latest
     env:
-      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }} # This token is provided by Actions
+      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      GOPRIVATE: "github.com/fuksman"
       COMPRESS_FILES: true
 
     steps:
@@ -21,6 +22,11 @@ jobs:
       uses: actions/setup-go@v2
       with:
         go-version: 1.17
+
+    - name: Configure git for private modules
+      env:
+        TOKEN: ${{ secrets.PERSONAL_ACCESS_TOKEN }}
+      run: git config --global url."https://fuksman:${TOKEN}@github.com".insteadOf "https://github.com"
     
     - name: Get dependencies
       run: |

@@ -4,7 +4,7 @@ go 1.17
 
 require (
 	cloud.google.com/go/firestore v1.6.0
-	github.com/golang-jwt/jwt v3.2.2+incompatible
+	github.com/fuksman/delimobil v0.0.2
 	google.golang.org/api v0.57.0
 	gopkg.in/tucnak/telebot.v2 v2.4.0
 )
@@ -12,6 +12,7 @@ require (
 require (
 	cloud.google.com/go v0.94.1 // indirect
 	github.com/davecgh/go-spew v1.1.1 // indirect
+	github.com/golang-jwt/jwt v3.2.2+incompatible // indirect
 	github.com/golang/groupcache v0.0.0-20200121045136-8c9f03a8e57e // indirect
 	github.com/golang/protobuf v1.5.2 // indirect
 	github.com/google/go-cmp v0.5.6 // indirect
