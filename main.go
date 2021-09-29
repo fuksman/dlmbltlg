@@ -84,9 +84,9 @@ func main() {
 		return
 	}
 
-	b.Handle("/start", func(c tele.Context) error {
+	b.Handle("/start", func(tlg tele.Context) error {
 		mes := "Привет! Вот мой список команд:\n/auth — Авторизоваться\n/balance — Показать текущий баланс\n/rides — Показать последние поездки\n/newinvoice — Создать новый счёт\n/lastinvoice — Получить последний счёт"
-		return c.Send(mes)
+		return tlg.Send(mes)
 	})
 
 	b.Handle("/auth", func(tlg tele.Context) error {
@@ -106,11 +106,19 @@ func main() {
 		return tlg.Send("Привет, " + user.Name() + "!\nВсё настроено, можем работать." + removed)
 	})
 
-	b.Handle("/balance", func(tlg tele.Context) error {
-		user, err := UserData(tlg.Sender().ID)
-		if err != nil {
-			return tlg.Send(err.Error())
+	b.Handle("/stop", func(tlg tele.Context) error {
+		if err := RemoveUser(tlg.Sender().ID); err != nil {
+			return err
 		}
+		return tlg.Send("👋 Удалил всю информацию о пользователе")
+	})
+
+	// User-related handlers
+	userBot := b.Group()
+	userBot.Use(provideUserToContext)
+
+	userBot.Handle("/balance", func(tlg tele.Context) error {
+		user := tlg.Get("user").(*delimobil.User)
 		if err := user.SetCompanyInfo(); err != nil {
 			return tlg.Send(err.Error())
 		}
@@ -128,11 +136,8 @@ func main() {
 		return SendInvoiceMenu(&tlg)
 	})
 
-	b.Handle("/rides", func(tlg tele.Context) error {
-		user, err := UserData(tlg.Sender().ID)
-		if err != nil {
-			return tlg.Send(err.Error())
-		}
+	userBot.Handle("/rides", func(tlg tele.Context) error {
+		user := tlg.Get("user").(*delimobil.User)
 		if err := user.SetCompanyInfo(); err != nil {
 			return tlg.Send(err.Error())
 		}
@@ -143,30 +148,30 @@ func main() {
 		return tlg.Send(mes)
 	})
 
-	b.Handle("/lastinvoice", func(tlg tele.Context) error {
+	userBot.Handle("/lastinvoice", func(tlg tele.Context) error {
 		return Invoice(&tlg)
 	})
 
-	b.Handle("/newinvoice", func(tlg tele.Context) error {
+	userBot.Handle("/newinvoice", func(tlg tele.Context) error {
 		return SendInvoiceMenu(&tlg)
 	})
 
-	b.Handle(&btnNewInvoice3000, func(tlg tele.Context) error {
+	userBot.Handle(&btnNewInvoice3000, func(tlg tele.Context) error {
 		Invoice(&tlg, 3000)
 		return tlg.Respond()
 	})
 
-	b.Handle(&btnNewInvoice10000, func(tlg tele.Context) error {
+	userBot.Handle(&btnNewInvoice10000, func(tlg tele.Context) error {
 		Invoice(&tlg, 10000)
 		return tlg.Respond()
 	})
 
-	b.Handle(&btnNewInvoice30000, func(tlg tele.Context) error {
+	userBot.Handle(&btnNewInvoice30000, func(tlg tele.Context) error {
 		Invoice(&tlg, 30000)
 		return tlg.Respond()
 	})
 
-	b.Handle(&btnLastInvoice, func(tlg tele.Context) error {
+	userBot.Handle(&btnLastInvoice, func(tlg tele.Context) error {
 		Invoice(&tlg)
 		return tlg.Respond()
 	})
@@ -180,12 +185,12 @@ func SendInvoiceMenu(tlg *tele.Context) error {
 
 func Invoice(tlg *tele.Context, amount ...float64) error {
 	senderLogger := log.WithField("id", (*tlg).Sender().ID)
-	user, err := UserData((*tlg).Sender().ID)
-	if err != nil {
-		(*tlg).Send(err.Error())
-		return err
-	}
-	var invoice *delimobil.File
+	user := (*tlg).Get("user").(*delimobil.User)
+
+	var (
+		invoice *delimobil.File
+		err     error
+	)
 	if amount != nil {
 		senderLogger.Trace("Creating new invoice...")
 		invoice, err = user.CreateInvoice(amount[0])
@@ -293,4 +298,29 @@ func SaveUser(login string, password string, id int64) (user *delimobil.User, er
 
 	senderLogger.Info("Saved!")
 	return user, nil
+}
+
+func RemoveUser(id int64) error {
+	senderLogger := log.WithField("id", id)
+	senderLogger.Trace("Removing user data...")
+	userDocRef := client.Collection(usersCollection).Doc(strconv.FormatInt(id, 10))
+	if _, err := userDocRef.Delete(ctx); err != nil {
+		senderLogger.Warn(err)
+		return err
+	}
+	senderLogger.Info("Deleted!")
+	return nil
+}
+
+func provideUserToContext(next tele.HandlerFunc) tele.HandlerFunc {
+	return func(tlg tele.Context) error {
+		user, err := UserData(tlg.Sender().ID)
+		if err != nil {
+			return tlg.Send(err.Error())
+		}
+
+		tlg.Set("user", user)
+
+		return next(tlg)
+	}
 }
