@@ -6,11 +6,12 @@ import (
 	"encoding/base64"
 	"encoding/gob"
 	"errors"
-	log "github.com/sirupsen/logrus"
+	"os"
 	"strconv"
 
 	"cloud.google.com/go/firestore"
 	"github.com/fuksman/delimobil"
+	log "github.com/sirupsen/logrus"
 	tele "gopkg.in/tucnak/telebot.v3"
 )
 
@@ -20,11 +21,25 @@ var (
 	invoiceMenu                                                               *tele.ReplyMarkup
 	btnNewInvoice3000, btnNewInvoice10000, btnNewInvoice30000, btnLastInvoice tele.Btn
 	authError                                                                 error
+	env                                                                       string
+	usersCollection                                                           string
 )
 
 func init() {
-	log.SetLevel(log.WarnLevel)
-	log.SetReportCaller(true)
+	env = os.Getenv("DLMBLENV")
+	switch env {
+	case "prod":
+		log.SetLevel(log.WarnLevel)
+		usersCollection = "Users"
+	case "test":
+		log.SetLevel(log.TraceLevel)
+		log.SetReportCaller(true)
+		log.Info("Using 'test' environment")
+		usersCollection = "TestUsers"
+	default:
+		log.Fatal("Should be the DLMBLENV evariable with 'prod' or 'test' value")
+		return
+	}
 
 	invoiceMenu = &tele.ReplyMarkup{}
 	btnNewInvoice3000 = invoiceMenu.Data("На 3 000 ₽", "btnNewInvoice3000")
@@ -54,7 +69,7 @@ func main() {
 		return
 	}
 
-	tlgKey, err := tlgDoc.DataAt("key")
+	tlgKey, err := tlgDoc.DataAt(env)
 	if err != nil {
 		log.Fatal("Can't get telegram key from firestore", err)
 		return
@@ -219,7 +234,7 @@ func UserData(id int64) (user *delimobil.User, err error) {
 func LoadUser(id int64) (user *delimobil.User, err error) {
 	senderLogger := log.WithField("id", id)
 	senderLogger.Trace("Loading user...")
-	userDocRef := client.Collection("Users").Doc(strconv.FormatInt(id, 10))
+	userDocRef := client.Collection(usersCollection).Doc(strconv.FormatInt(id, 10))
 
 	userDoc, err := userDocRef.Get(ctx)
 	if err != nil {
@@ -254,7 +269,6 @@ func LoadUser(id int64) (user *delimobil.User, err error) {
 func SaveUser(login string, password string, id int64) (user *delimobil.User, err error) {
 	senderLogger := log.WithField("id", id)
 	senderLogger.Trace("Updating user token...")
-	userDocRef := client.Collection("Users").Doc(strconv.FormatInt(id, 10))
 
 	user = new(delimobil.User)
 	if err := user.Auth(login, password); err != nil {
@@ -271,6 +285,7 @@ func SaveUser(login string, password string, id int64) (user *delimobil.User, er
 		return nil, err
 	}
 
+	userDocRef := client.Collection(usersCollection).Doc(strconv.FormatInt(id, 10))
 	if _, err := userDocRef.Set(ctx, map[string]interface{}{"gob": base64.StdEncoding.EncodeToString(buf.Bytes())}, firestore.MergeAll); err != nil {
 		senderLogger.Warn(err)
 		return nil, err
