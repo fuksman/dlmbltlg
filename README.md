@@ -14,19 +14,19 @@ This application provides abilities to:
 
 Run:
 ```zsh
-GOOGLE_APPLICATION_CREDENTIALS="{path_to_Google_ADC}" DLMBLENV="{env}" go run main.go
+DLMBLENV="{path_to_app_config}" GOOGLE_APPLICATION_CREDENTIALS="{path_to_Google_ADC}" go run dlmbltlg
 ```
 
-More about `{path_to_Google_ADC}`: https://cloud.google.com/docs/authentication/production
+More about `{{path_to_app_config}}` in ["App configuration file"](#app-configuration-file)
 
-Options for `{env}`: `prod` or `test`
+More about `{path_to_Google_ADC}`: https://cloud.google.com/docs/authentication/production
 
 ### Command-line
 Download [last version](https://github.com/fuksman/dlmbltlg/releases/latest) from releases.
 
 The executable relies on several env variables:
+* `DLMBLENV="{path_to_app_config}"` (more about [configuration file](#app-configuration-file))
 * `GOOGLE_APPLICATION_CREDENTIALS={path_to_Google_ADC}` (used for Firestore authentification, read more: https://cloud.google.com/docs/authentication/production)
-* `DLMBLENV={env}`, where `{env}` is `prod` or `test`
 
 Run:
 ```zsh
@@ -50,17 +50,15 @@ git push --tag
 ```
 
 
-## Firestore configuration
-Database collections:
-```
-Users
-- {Telegram Chat ID}
-TestUsers
-- {Telegram Chat ID}
-Secrets
-- Telegram
--- prod: {Telegram Bot Token}
--- test: {Telegram Bot Token}
+## App configuration file
+App configuration should be a JSON-file following structure (all fields are required):
+```(json)
+{
+  "environment": {"test" or "prod"},
+  "telegram_token": {token},
+  "project_id": {Google Cloud Project ID},
+  "users_collection": {Firestore collection name}
+}
 ```
 
 ## Related projects

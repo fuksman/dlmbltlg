@@ -16,28 +16,28 @@ import (
 )
 
 var (
+	appConfig                                                                 AppConfig
 	ctx                                                                       context.Context
 	client                                                                    *firestore.Client
 	invoiceMenu                                                               *tele.ReplyMarkup
 	btnNewInvoice3000, btnNewInvoice10000, btnNewInvoice30000, btnLastInvoice tele.Btn
 	authError                                                                 error
-	env                                                                       string
-	usersCollection                                                           string
 )
 
 func init() {
-	env = os.Getenv("DLMBLENV")
-	switch env {
+	if err := appConfig.LoadConfiguration(os.Getenv("DLMBLTLG")); err != nil {
+		log.Fatal(err)
+		return
+	}
+	switch appConfig.Environment {
 	case "prod":
 		log.SetLevel(log.WarnLevel)
-		usersCollection = "Users"
 	case "test":
 		log.SetLevel(log.TraceLevel)
 		log.SetReportCaller(true)
 		log.Info("Using 'test' environment")
-		usersCollection = "TestUsers"
 	default:
-		log.Fatal("Should be the DLMBLENV evariable with 'prod' or 'test' value")
+		log.Fatal("'environment' should be 'test' or 'prod', but now it is ", appConfig.Environment)
 		return
 	}
 
@@ -55,7 +55,7 @@ func init() {
 	ctx = context.Background()
 
 	var err error
-	client, err = firestore.NewClient(ctx, "dlmbltlg")
+	client, err = firestore.NewClient(ctx, appConfig.ProjectID)
 	if err != nil {
 		log.Fatal("Can't run firestore client", err)
 		return
@@ -63,20 +63,8 @@ func init() {
 }
 
 func main() {
-	tlgDoc, err := client.Collection("Secrets").Doc("Telegram").Get(ctx)
-	if err != nil {
-		log.Fatal("Can't get telegram key from firestore", err)
-		return
-	}
-
-	tlgKey, err := tlgDoc.DataAt(env)
-	if err != nil {
-		log.Fatal("Can't get telegram key from firestore", err)
-		return
-	}
-
 	b, err := tele.NewBot(tele.Settings{
-		Token:  tlgKey.(string),
+		Token:  appConfig.TelegramToken,
 		Poller: &tele.LongPoller{Timeout: 10 * 1e9},
 	})
 	if err != nil {
@@ -210,6 +198,18 @@ func Invoice(tlg *tele.Context, amount ...float64) error {
 	return (*tlg).Send(doc)
 }
 
+func provideUserToContext(next tele.HandlerFunc) tele.HandlerFunc {
+	return func(tlg tele.Context) error {
+		user, err := UserData(tlg.Sender().ID)
+		if err != nil {
+			return tlg.Send(err.Error())
+		}
+
+		tlg.Set("user", user)
+
+		return next(tlg)
+	}
+}
 func UserData(id int64) (user *delimobil.User, err error) {
 	senderLogger := log.WithField("id", id)
 	senderLogger.Trace("Getting user data...")
@@ -239,7 +239,7 @@ func UserData(id int64) (user *delimobil.User, err error) {
 func LoadUser(id int64) (user *delimobil.User, err error) {
 	senderLogger := log.WithField("id", id)
 	senderLogger.Trace("Loading user...")
-	userDocRef := client.Collection(usersCollection).Doc(strconv.FormatInt(id, 10))
+	userDocRef := client.Collection(appConfig.UsersCollection).Doc(strconv.FormatInt(id, 10))
 
 	userDoc, err := userDocRef.Get(ctx)
 	if err != nil {
@@ -290,7 +290,7 @@ func SaveUser(login string, password string, id int64) (user *delimobil.User, er
 		return nil, err
 	}
 
-	userDocRef := client.Collection(usersCollection).Doc(strconv.FormatInt(id, 10))
+	userDocRef := client.Collection(appConfig.UsersCollection).Doc(strconv.FormatInt(id, 10))
 	if _, err := userDocRef.Set(ctx, map[string]interface{}{"gob": base64.StdEncoding.EncodeToString(buf.Bytes())}, firestore.MergeAll); err != nil {
 		senderLogger.Warn(err)
 		return nil, err
@@ -303,24 +303,11 @@ func SaveUser(login string, password string, id int64) (user *delimobil.User, er
 func RemoveUser(id int64) error {
 	senderLogger := log.WithField("id", id)
 	senderLogger.Trace("Removing user data...")
-	userDocRef := client.Collection(usersCollection).Doc(strconv.FormatInt(id, 10))
+	userDocRef := client.Collection(appConfig.UsersCollection).Doc(strconv.FormatInt(id, 10))
 	if _, err := userDocRef.Delete(ctx); err != nil {
 		senderLogger.Warn(err)
 		return err
 	}
 	senderLogger.Info("Deleted!")
 	return nil
-}
-
-func provideUserToContext(next tele.HandlerFunc) tele.HandlerFunc {
-	return func(tlg tele.Context) error {
-		user, err := UserData(tlg.Sender().ID)
-		if err != nil {
-			return tlg.Send(err.Error())
-		}
-
-		tlg.Set("user", user)
-
-		return next(tlg)
-	}
 }
