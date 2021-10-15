@@ -4,7 +4,7 @@ go 1.17
 
 require (
 	cloud.google.com/go/firestore v1.6.0
-	github.com/fuksman/delimobil v1.1.1
+	github.com/fuksman/delimobil v1.1.2
 	github.com/sirupsen/logrus v1.8.1
 	gopkg.in/tucnak/telebot.v3 v3.0.0-20210930165304-9a08d98f4ee7
 )

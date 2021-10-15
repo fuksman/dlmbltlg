@@ -83,6 +83,8 @@ github.com/fuksman/delimobil v1.1.0 h1:OdjfANhEZFR0+jKfeUnYtE2Me1DYI8eQs0PD+FL54
 github.com/fuksman/delimobil v1.1.0/go.mod h1:SBrgMVbCq2FAYtJ5A9B78HAwpE8e0LCy7q2cVOsv5xI=
 github.com/fuksman/delimobil v1.1.1 h1:ag9rbgvUKeItP0G7IJnnU7lSSNlchrPXgmBjPukNooM=
 github.com/fuksman/delimobil v1.1.1/go.mod h1:SBrgMVbCq2FAYtJ5A9B78HAwpE8e0LCy7q2cVOsv5xI=
+github.com/fuksman/delimobil v1.1.2 h1:tPQULSBkcF6Bsg6BP+o/fXrtMO4qBlPPPheycHttnxM=
+github.com/fuksman/delimobil v1.1.2/go.mod h1:SBrgMVbCq2FAYtJ5A9B78HAwpE8e0LCy7q2cVOsv5xI=
 github.com/ghodss/yaml v1.0.0/go.mod h1:4dBDuWmgqj2HViK6kFavaiC9ZROes6MMH2rRYeMEF04=
 github.com/go-gl/glfw v0.0.0-20190409004039-e6da0acd62b1/go.mod h1:vR7hzQXu2zJy9AVAgeJqvqgH9Q5CA+iKCZ2gyEVpxRU=
 github.com/go-gl/glfw/v3.3/glfw v0.0.0-20191125211704-12ad95a8df72/go.mod h1:tQ2UAYgL5IevRw8kRxooKSPJfGvJ9fJQFa0TUsXzTg8=
