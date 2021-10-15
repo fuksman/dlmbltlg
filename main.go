@@ -2,9 +2,8 @@ package main
 
 import (
 	"context"
-	"errors"
-	"os"
 	"strconv"
+	"time"
 
 	"cloud.google.com/go/firestore"
 	"github.com/sirupsen/logrus"
@@ -21,7 +20,7 @@ var (
 )
 
 func init() {
-	if err := appConfig.LoadConfiguration(os.Getenv("DLMBLTLG")); err != nil {
+	if err := appConfig.LoadConfiguration(); err != nil {
 		log.Fatal(err)
 		return
 	}
@@ -119,12 +118,11 @@ func main() {
 
 		user, ok := tlg.Get("user").(*User)
 		if !ok {
-			err := errors.New("ошибка получения информации о пользователе")
-			userLogger.Warn(err)
-			return tlg.Send(err.Error() + removed)
+			return tlg.Send("Не могу получить информацию о пользователе" + removed)
 		}
 		user.CompanyId = company.Id
 		user.Admin = true
+		user.SetLastRideId(company)
 		if err := user.SaveUser(); err != nil {
 			tlg.Delete()
 			return tlg.Send("Авторизация прошла, но с ошибкой:\n"+err.Error()+removed, startMenu)
@@ -145,50 +143,36 @@ func main() {
 	// Company-related handlers
 	companyBot := b.Group()
 	companyBot.Use(provideUserToContext)
-	companyBot.Use(checkIsActive)
 	companyBot.Use(provideCompanyToContext)
 
 	companyBot.Handle("Баланс", func(tlg tele.Context) error {
-		menu, ok := tlg.Get("menu").(*tele.ReplyMarkup)
-		if !ok {
-			menu = emplMenu
+		user, company, menu, err := ReadContext(tlg)
+		if err != nil {
+			return tlg.Send(err.Error(), startMenu)
 		}
 
-		company, ok := tlg.Get("company").(*Company)
-		if !ok {
-			err := errors.New("ошибка получения информации о компании")
-			log.Warn(err)
-			return tlg.Send(err.Error(), menu)
-		}
 		if err := company.SetInfo(); err != nil {
 			return tlg.Send(err.Error(), menu)
 		}
 
-		balanceLimit := float64(1000)
 		mes := company.Info.Name + "\n" +
 			"Текущий баланс: " + strconv.FormatFloat(company.Info.Balance, 'f', 2, 64) + " ₽"
 
-		if company.IsBalanceOK(balanceLimit) {
-			return tlg.Send(mes, menu)
+		err = tlg.Send(mes, menu)
+		if err == nil {
+			user.SetLastRideId(company)
+			user.SaveUser()
 		}
-		mes += "\n\n🚨 Баланс меньше " + strconv.FormatFloat(balanceLimit, 'f', 2, 64) + " ₽!\nНадо пополнять."
-		tlg.Send(mes, menu)
 
-		return SendInvoiceMenu(&tlg)
+		return err
 	})
 
 	companyBot.Handle("Поездки", func(tlg tele.Context) error {
-		menu, ok := tlg.Get("menu").(*tele.ReplyMarkup)
-		if !ok {
-			menu = emplMenu
+		user, company, menu, err := ReadContext(tlg)
+		if err != nil {
+			return tlg.Send(err.Error(), startMenu)
 		}
 
-		company, ok := tlg.Get("company").(*Company)
-		if !ok {
-			err := errors.New("ошибка получения информации о компании")
-			log.Warn(err)
-			return tlg.Send(err.Error(), menu)
-		}
 		if err := company.SetInfo(); err != nil {
 			return tlg.Send(err.Error(), menu)
 		}
@@ -196,14 +180,21 @@ func main() {
 			return tlg.Send(err.Error(), menu)
 		}
 		mes := "Последние поездки:\n" + company.Rides.String()
-		return tlg.Send(mes, menu)
+
+		err = tlg.Send(mes, menu)
+		if err == nil {
+			user.SetLastRideId(company)
+			user.SaveUser()
+		}
+
+		return err
 	})
 
 	// Admin-only handlers
 	adminBot := b.Group()
 	adminBot.Use(provideUserToContext)
-	adminBot.Use(ensureIsAdmin)
 	adminBot.Use(provideCompanyToContext)
+	adminBot.Use(ensureIsAdmin)
 
 	adminBot.Handle("Последний счёт", func(tlg tele.Context) error {
 		return Invoice(&tlg)
@@ -233,46 +224,15 @@ func main() {
 		return tlg.Respond()
 	})
 
+	log.Trace("Starting notifyer...")
+	ticker := time.NewTicker(5 * time.Minute)
+	defer ticker.Stop()
+	go func() {
+		for range ticker.C {
+			NotifyUsersAfterRide(b)
+		}
+	}()
+
+	log.Trace("Starting bot...")
 	b.Start()
-}
-
-func SendInvoiceMenu(tlg *tele.Context) error {
-	return (*tlg).Send("Какой нужен счёт?", invoiceMenu)
-}
-
-func BuildReplyMenus() {
-	startMenu = &tele.ReplyMarkup{ResizeKeyboard: true}
-	unAuthMenu = &tele.ReplyMarkup{ResizeKeyboard: true}
-	emplMenu = &tele.ReplyMarkup{ResizeKeyboard: true}
-	adminMenu = &tele.ReplyMarkup{ResizeKeyboard: true}
-
-	startMenu.Reply(
-		startMenu.Row(startMenu.Contact("Дать номер телефона")),
-	)
-
-	unAuthMenu.Reply(
-		unAuthMenu.Row(unAuthMenu.Text("Я администратор")),
-		unAuthMenu.Row(unAuthMenu.Text("Разлогиниться")),
-	)
-
-	emplMenu.Reply(
-		emplMenu.Row(emplMenu.Text("Баланс"), emplMenu.Text("Поездки")),
-		emplMenu.Row(emplMenu.Text("Разлогиниться")),
-	)
-
-	adminMenu.Reply(
-		adminMenu.Row(adminMenu.Text("Баланс"), adminMenu.Text("Поездки")),
-		adminMenu.Row(adminMenu.Text("Последний счёт"), adminMenu.Text("Новый счёт")),
-		adminMenu.Row(adminMenu.Text("Разлогиниться")),
-	)
-
-	invoiceMenu = &tele.ReplyMarkup{}
-	btnNewInvoice3000 = invoiceMenu.Data("На 3 000 ₽", "btnNewInvoice3000")
-	btnNewInvoice10000 = invoiceMenu.Data("На 10 000 ₽", "btnNewInvoice10000")
-	btnNewInvoice30000 = invoiceMenu.Data("На 30 000 ₽", "btnNewInvoice30000")
-	btnLastInvoice = invoiceMenu.Data("Последний", "btnLastInvoice")
-	invoiceMenu.Inline(
-		invoiceMenu.Row(btnNewInvoice3000, btnNewInvoice10000),
-		invoiceMenu.Row(btnNewInvoice30000, btnLastInvoice),
-	)
 }

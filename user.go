@@ -8,10 +8,15 @@ import (
 )
 
 type User struct {
-	Id        int64
-	Phone     string
-	CompanyId int
-	Admin     bool
+	Id         int64
+	Phone      string
+	CompanyId  int
+	Admin      bool
+	LastRideId int
+}
+
+func (user *User) Recipient() string {
+	return strconv.FormatInt(user.Id, 10)
 }
 
 func (user *User) SaveUser() error {
@@ -111,6 +116,7 @@ func (user *User) FindCompany() (company *Company, err error) {
 		}
 		if exist {
 			user.CompanyId = company.Id
+			user.SetLastRideId(company)
 			if err = user.SaveUser(); err != nil {
 				userLogger.Warn(err)
 				return nil, err
@@ -124,20 +130,11 @@ func (user *User) FindCompany() (company *Company, err error) {
 	return nil, nil
 }
 
-func (user *User) IsActive() bool {
-	userLogger := log.WithField("userId", user.Id)
-	userLogger.Trace("Checking if user is still employee...")
-	company, err := LoadCompany(user.CompanyId)
-	if err != nil {
-		userLogger.Warn(err)
-		return false
+func (user *User) SetLastRideId(company *Company) {
+	if err := company.SetRides(1, 1); err != nil {
+		log.Warn(err)
 	}
-
-	active, err := company.HasEmployee(user.Phone)
-	if err != nil {
-		userLogger.Warn(err)
-		return false
+	if len(company.Rides) != 0 {
+		user.LastRideId = company.Rides[0].RentID
 	}
-	userLogger.Trace("User activity in the company: " + strconv.FormatBool(active))
-	return active
 }

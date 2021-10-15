@@ -12,7 +12,8 @@ type AppConfig struct {
 	ProjectID     string `json:"project_id"`
 }
 
-func (appConfig *AppConfig) LoadConfiguration(file string) error {
+func (appConfig *AppConfig) LoadConfiguration() error {
+	file := os.Getenv("DLMBLTLG")
 	if file == "" {
 		return errors.New("should be DLMBLTLG environment variable set to the path to app config")
 	}

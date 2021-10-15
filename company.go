@@ -93,3 +93,18 @@ func RemoveCompany(id int) error {
 	companyLogger.Info("Deleted!")
 	return nil
 }
+
+func (company *Company) Permissions(user *User) string {
+	if user.CompanyId == company.Id && user.Admin {
+		return "admin"
+	}
+	employee, err := company.HasEmployee(user.Phone)
+	if err != nil {
+		log.Warn(err)
+		return ""
+	}
+	if employee {
+		return "employee"
+	}
+	return ""
+}
