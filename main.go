@@ -204,6 +204,10 @@ func main() {
 		return SendInvoiceMenu(&tlg)
 	})
 
+	adminBot.Handle("Последние закрывающие", func(tlg tele.Context) error {
+		return LastClosingDocuments(&tlg)
+	})
+
 	adminBot.Handle(&btnNewInvoice3000, func(tlg tele.Context) error {
 		Invoice(&tlg, 3000)
 		return tlg.Respond()
@@ -224,7 +228,7 @@ func main() {
 		return tlg.Respond()
 	})
 
-	log.Trace("Starting notifyer...")
+	log.Trace("Starting balance change notifyer...")
 	ticker := time.NewTicker(5 * time.Minute)
 	defer ticker.Stop()
 	go func() {
@@ -232,6 +236,32 @@ func main() {
 			NotifyUsersAfterRide(b)
 		}
 	}()
+
+	// log.Trace("Starting new closing documents notifyer...")
+	// go func() {
+	// 	for {
+	// 		now := time.Now()
+	// 		if now.Day() == 1 {
+	// 			log.Trace("Today is the first day of month. Starting checking for new documents...")
+	// 			// TODO: run gorutine to check for documents every 12 hours until they exist
+	// 			go func() {
+	// 				found := false
+	// 				for !found {
+	// 					log.Trace("Looking for new documents...")
+	// 					// TODO: call notifyer func
+	// 					if !found {
+	// 						log.Trace("Didn't find new documents. Will check in 3 hours.")
+	// 						time.Sleep(3 * time.Hour)
+	// 					}
+	// 				}
+	// 			}()
+	// 			time.Sleep(28 * 24 * time.Hour)
+	// 		} else {
+	// 			log.Trace("Today is not the first day of month. Will check tomorrow.")
+	// 			time.Sleep(24 * time.Hour)
+	// 		}
+	// 	}
+	// }()
 
 	log.Trace("Starting bot...")
 	b.Start()

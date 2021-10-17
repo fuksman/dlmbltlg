@@ -117,6 +117,7 @@ func BuildReplyMenus() {
 	adminMenu.Reply(
 		adminMenu.Row(adminMenu.Text("Баланс"), adminMenu.Text("Поездки")),
 		adminMenu.Row(adminMenu.Text("Последний счёт"), adminMenu.Text("Новый счёт")),
+		adminMenu.Row(adminMenu.Text("Последние закрывающие")),
 		adminMenu.Row(adminMenu.Text("Разлогиниться")),
 	)
 
