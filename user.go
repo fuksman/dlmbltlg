@@ -8,11 +8,11 @@ import (
 )
 
 type User struct {
-	Id         int64
-	Phone      string
-	CompanyId  int
-	Admin      bool
-	LastRideId int
+	Id          int64
+	Phone       string
+	CompanyId   int
+	Admin       bool
+	LastBalance float64
 }
 
 func (user *User) Recipient() string {
@@ -116,7 +116,7 @@ func (user *User) FindCompany() (company *Company, err error) {
 		}
 		if exist {
 			user.CompanyId = company.Id
-			user.SetLastRideId(company)
+			user.SetLastBalance(company)
 			if err = user.SaveUser(); err != nil {
 				userLogger.Warn(err)
 				return nil, err
@@ -130,11 +130,9 @@ func (user *User) FindCompany() (company *Company, err error) {
 	return nil, nil
 }
 
-func (user *User) SetLastRideId(company *Company) {
-	if err := company.SetRides(1, 1); err != nil {
+func (user *User) SetLastBalance(company *Company) {
+	if err := company.SetInfo(); err != nil {
 		log.Warn(err)
 	}
-	if len(company.Rides) != 0 {
-		user.LastRideId = company.Rides[0].RentID
-	}
+	user.LastBalance = company.Balance
 }

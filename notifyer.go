@@ -6,9 +6,9 @@ import (
 	tele "gopkg.in/tucnak/telebot.v3"
 )
 
-func NotifyUsersAfterRide(b *tele.Bot) {
+func NotifyAboutBalanceChange(b *tele.Bot) {
 	log.Trace("Notifying users about changes...")
-	companyLastRide := make(map[int]*Company)
+	companyLastBalance := make(map[int]*Company)
 
 	companyDocRefs, err := client.Collection(appConfig.ProjectID).Doc(appConfig.Environment).Collection("companies").DocumentRefs(ctx).GetAll()
 	if err != nil {
@@ -26,17 +26,12 @@ func NotifyUsersAfterRide(b *tele.Bot) {
 		if err != nil {
 			companyLogger.Warn(err)
 		}
-		if err := company.SetRides(1, 1); err != nil {
+
+		if err := company.SetInfo(); err != nil {
 			companyLogger.Warn(err)
 		}
-		if len(company.Rides) != 0 {
-			if err := company.SetInfo(); err != nil {
-				companyLogger.Warn(err)
-			} else {
-				companyLastRide[company.Id] = company
-				companyLogger.Trace("Saved updated company to the map")
-			}
-		}
+		companyLastBalance[company.Id] = company
+		companyLogger.Trace("Saved updated company to the map")
 	}
 	log.Trace("Checked all companies")
 
@@ -56,25 +51,25 @@ func NotifyUsersAfterRide(b *tele.Bot) {
 			userLogger.Warn(err)
 		}
 
-		if company, ok := companyLastRide[user.CompanyId]; ok {
+		if company, ok := companyLastBalance[user.CompanyId]; ok {
 			companyLogger := userLogger.WithField("companyId", company.Id)
-			companyLogger.Trace("Found user's company in last rides list")
+			companyLogger.Trace("Found user's company in balances list")
 
 			if company.Permissions(user) == "" {
 				companyLogger.Warn("User doesn't have permissions for this company")
 				break
 			}
 
-			lastRideId := company.Rides[0].RentID
-			if lastRideId != user.LastRideId {
-				companyLogger.Trace("User's last ride id defers")
-				mes := "💸 Баланс компании " + company.Info.Name + " уменьшился\n" +
+			balance := company.Balance
+			if balance != user.LastBalance {
+				companyLogger.Trace("User's last balance defers")
+				mes := "💸 Баланс компании " + company.Info.Name + " изменился\n" +
 					"Текущий баланс: " + strconv.FormatFloat(company.Info.Balance, 'f', 2, 64) + " ₽"
 				if _, err := b.Send(user, mes); err == nil {
-					companyLogger.Trace("Notifyed user! Updating user's last ride id...")
-					user.LastRideId = lastRideId
+					companyLogger.Trace("Notifyed user! Updating user's last balance...")
+					user.LastBalance = balance
 					if err := user.SaveUser(); err == nil {
-						companyLogger.Trace("Updated user's last ride id!")
+						companyLogger.Trace("Updated user's last balance!")
 					} else {
 						companyLogger.Warn(err)
 					}
@@ -82,7 +77,7 @@ func NotifyUsersAfterRide(b *tele.Bot) {
 					companyLogger.Warn(err)
 				}
 			}
-			companyLogger.Trace("User's last ride is actual, not notifying")
+			companyLogger.Trace("User's last balance is actual, not notifying")
 		}
 	}
 	log.Trace("Checked all users")

@@ -2,11 +2,11 @@
 Telegram bot to work with Delimobil b2b-account.
 
 This application provides abilities to:
-* Authenticate in a bot with Delimobil user's credentials
-* Get balance
+* Authenticate in a bot with Delimobil admin's credentials or as the employee of existing company
+* Get balance with automatic notifications about its changes
 * Get last rides list
-* Get last invoice generated in the current month
-* Generate and get new invoice
+* Get last documents from Delimobil
+* Generate new invoices
 
 ## Running
 
@@ -14,7 +14,7 @@ This application provides abilities to:
 
 Run:
 ```zsh
-DLMBLENV="{path_to_app_config}" GOOGLE_APPLICATION_CREDENTIALS="{path_to_Google_ADC}" go run dlmbltlg
+DLMBLTLG="{path_to_app_config}" GOOGLE_APPLICATION_CREDENTIALS="{path_to_Google_ADC}" go run dlmbltlg
 ```
 
 More about `{{path_to_app_config}}` in ["App configuration file"](#app-configuration-file)
@@ -25,7 +25,7 @@ More about `{path_to_Google_ADC}`: https://cloud.google.com/docs/authentication/
 Download [last version](https://github.com/fuksman/dlmbltlg/releases/latest) from releases.
 
 The executable relies on several env variables:
-* `DLMBLENV="{path_to_app_config}"` (more about [configuration file](#app-configuration-file))
+* `DLMBLTLG="{path_to_app_config}"` (more about [configuration file](#app-configuration-file))
 * `GOOGLE_APPLICATION_CREDENTIALS={path_to_Google_ADC}` (used for Firestore authentification, read more: https://cloud.google.com/docs/authentication/production)
 
 Run:
@@ -43,7 +43,7 @@ go build
 ```
 
 ### Github Actions
-There is an action which builds an executables for `linux/396` and `darwin/amd64` which triggers on:
+There is an action which builds an executables for `linux/396` and `darwin/arm64` which triggers on:
 ```zsh
 git tag {vN.N.N}
 git push --tag
@@ -57,7 +57,7 @@ App configuration should be a JSON-file following structure (all fields are requ
   "environment": {"test" or "prod"},
   "telegram_token": {token},
   "project_id": {Google Cloud Project ID},
-  "users_collection": {Firestore collection name}
+  "check_delay": {number of seconds between balance change checking}
 }
 ```
 

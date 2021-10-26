@@ -122,7 +122,7 @@ func main() {
 		}
 		user.CompanyId = company.Id
 		user.Admin = true
-		user.SetLastRideId(company)
+		user.SetLastBalance(company)
 		if err := user.SaveUser(); err != nil {
 			tlg.Delete()
 			return tlg.Send("Авторизация прошла, но с ошибкой:\n"+err.Error()+removed, startMenu)
@@ -160,7 +160,7 @@ func main() {
 
 		err = tlg.Send(mes, menu)
 		if err == nil {
-			user.SetLastRideId(company)
+			user.SetLastBalance(company)
 			user.SaveUser()
 		}
 
@@ -168,7 +168,7 @@ func main() {
 	})
 
 	companyBot.Handle("Поездки", func(tlg tele.Context) error {
-		user, company, menu, err := ReadContext(tlg)
+		_, company, menu, err := ReadContext(tlg)
 		if err != nil {
 			return tlg.Send(err.Error(), startMenu)
 		}
@@ -181,13 +181,7 @@ func main() {
 		}
 		mes := "Последние поездки:\n" + company.Rides.String()
 
-		err = tlg.Send(mes, menu)
-		if err == nil {
-			user.SetLastRideId(company)
-			user.SaveUser()
-		}
-
-		return err
+		return tlg.Send(mes, menu)
 	})
 
 	// Admin-only handlers
@@ -229,39 +223,13 @@ func main() {
 	})
 
 	log.Trace("Starting balance change notifyer...")
-	ticker := time.NewTicker(5 * time.Minute)
+	ticker := time.NewTicker(time.Duration(appConfig.CheckDelay) * time.Second)
 	defer ticker.Stop()
 	go func() {
 		for range ticker.C {
-			NotifyUsersAfterRide(b)
+			NotifyAboutBalanceChange(b)
 		}
 	}()
-
-	// log.Trace("Starting new closing documents notifyer...")
-	// go func() {
-	// 	for {
-	// 		now := time.Now()
-	// 		if now.Day() == 1 {
-	// 			log.Trace("Today is the first day of month. Starting checking for new documents...")
-	// 			// TODO: run gorutine to check for documents every 12 hours until they exist
-	// 			go func() {
-	// 				found := false
-	// 				for !found {
-	// 					log.Trace("Looking for new documents...")
-	// 					// TODO: call notifyer func
-	// 					if !found {
-	// 						log.Trace("Didn't find new documents. Will check in 3 hours.")
-	// 						time.Sleep(3 * time.Hour)
-	// 					}
-	// 				}
-	// 			}()
-	// 			time.Sleep(28 * 24 * time.Hour)
-	// 		} else {
-	// 			log.Trace("Today is not the first day of month. Will check tomorrow.")
-	// 			time.Sleep(24 * time.Hour)
-	// 		}
-	// 	}
-	// }()
 
 	log.Trace("Starting bot...")
 	b.Start()
