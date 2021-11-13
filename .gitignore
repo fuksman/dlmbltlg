@@ -1,2 +1,5 @@
 secrets/*
 dlmbltlg
+.vscode
+.gcloudignore
+app.yaml
