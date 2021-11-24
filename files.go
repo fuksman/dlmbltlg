@@ -10,6 +10,9 @@ func Invoice(tlg *tele.Context, amount ...float64) error {
 	if err != nil {
 		return (*tlg).Send(err.Error(), startMenu)
 	}
+	if err := company.SetInfo(); err != nil {
+		return (*tlg).Send(err.Error(), menu)
+	}
 
 	var (
 		invoice    *deli.File
